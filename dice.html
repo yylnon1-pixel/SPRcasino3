@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dice Pro</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg: var(--tg-theme-bg-color, #0f0f14);
+            --sec-bg: var(--tg-theme-secondary-bg-color, #1b1f3a);
+            --text: var(--tg-theme-text-color, #ffffff);
+            --btn: var(--tg-theme-button-color, #5e8fff);
+            --dice-white: #ffffff;
+            --hint: var(--tg-theme-hint-color, #708499);
+            --danger: #e63946;
+        }
+
+        body {
+            font-family: -apple-system, sans-serif;
+            margin: 0; background-color: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; overflow: hidden;
+            touch-action: manipulation; position: relative;
+        }
+
+        .grid-wrapper {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 45px 45px;
+            z-index: 0; pointer-events: none;
+        }
+
+        .balance-card {
+            position: relative; z-index: 1;
+            background: linear-gradient(145deg, var(--sec-bg), rgba(255,255,255,0.05));
+            padding: 15px 45px; border-radius: 25px;
+            margin-bottom: 50px; font-size: 28px; font-weight: 900;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4), inset 0 0 10px rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .scene { width: 100px; height: 100px; perspective: 1200px; z-index: 1; }
+        
+        .dice {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(-20deg) rotateY(20deg);
+            transition: transform 2.2s cubic-bezier(0.2, 0.9, 0.3, 1.02);
+            will-change: transform;
+        }
+
+        .face {
+            position: absolute; width: 100px; height: 100px;
+            background: var(--dice-white);
+            display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+            padding: 12px; box-sizing: border-box;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.15);
+            border-radius: 4px;
+        }
+
+        .dot { 
+            width: 18px; height: 18px; background: #111; border-radius: 50%; 
+            align-self: center; justify-self: center;
+            transform: translateZ(2px);
+        }
+        .face-1 .dot { background: var(--danger); width: 28px; height: 28px; }
+
+        .face-1 { transform: rotateY(0deg) translateZ(50.5px); display: flex; justify-content: center; align-items: center; }
+        .face-2 { transform: rotateY(180deg) translateZ(50.5px); }
+        .face-3 { transform: rotateY(90deg) translateZ(50.5px); }
+        .face-4 { transform: rotateY(-90deg) translateZ(50.5px); }
+        .face-5 { transform: rotateX(90deg) translateZ(50.5px); }
+        .face-6 { transform: rotateX(-90deg) translateZ(50.5px); }
+
+        .face-2 .dot:nth-child(1) { grid-area: 1 / 1; } .face-2 .dot:nth-child(2) { grid-area: 3 / 3; }
+        .face-3 .dot:nth-child(1) { grid-area: 1 / 1; } .face-3 .dot:nth-child(2) { grid-area: 2 / 2; } .face-3 .dot:nth-child(3) { grid-area: 3 / 3; }
+        .face-4 .dot:nth-child(1) { grid-area: 1 / 1; } .face-4 .dot:nth-child(2) { grid-area: 1 / 3; } .face-4 .dot:nth-child(3) { grid-area: 3 / 1; } .face-4 .dot:nth-child(4) { grid-area: 3 / 3; }
+        .face-5 .dot:nth-child(1) { grid-area: 1 / 1; } .face-5 .dot:nth-child(2) { grid-area: 1 / 3; } .face-5 .dot:nth-child(3) { grid-area: 2 / 2; } .face-5 .dot:nth-child(4) { grid-area: 3 / 1; } .face-5 .dot:nth-child(5) { grid-area: 3 / 3; }
+        .face-6 .dot:nth-child(1) { grid-area: 1 / 1; } .face-6 .dot:nth-child(2) { grid-area: 1 / 3; } .face-6 .dot:nth-child(3) { grid-area: 2 / 1; } .face-6 .dot:nth-child(4) { grid-area: 2 / 3; } .face-6 .dot:nth-child(5) { grid-area: 3 / 1; } .face-6 .dot:nth-child(6) { grid-area: 3 / 3; }
+
+        .controls { position: relative; z-index: 1; margin-top: 50px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+        .label { font-size: 12px; color: var(--hint); text-transform: uppercase; font-weight: bold; letter-spacing: 1px; }
+        
+        input {
+            background: var(--sec-bg); border: 2px solid var(--btn); color: white;
+            padding: 15px; border-radius: 16px; text-align: center; font-size: 24px; width: 150px; outline: none;
+        }
+
+        .play-btn {
+            width: 300px; padding: 20px; font-size: 18px; font-weight: bold;
+            border-radius: 20px; border: none; background: var(--btn); color: white;
+            text-transform: uppercase; cursor: pointer; transition: 0.2s;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        .play-btn:active { transform: scale(0.96); }
+        .play-btn:disabled { opacity: 0.6; }
+
+        .rules-card {
+            position: relative; z-index: 1;
+            width: 85%; max-width: 320px; background: var(--sec-bg); 
+            border-radius: 20px; padding: 20px; margin-top: 30px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .rules-card h3 { margin: 0 0 15px 0; font-size: 16px; text-align: center; color: var(--btn); text-transform: uppercase; letter-spacing: 1px; }
+        .rule-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 15px; }
+        .rule-info { display: flex; align-items: center; gap: 10px; }
+        .rule-dice { background: #eee; color: #111; padding: 2px 8px; border-radius: 6px; font-weight: 900; font-size: 14px; min-width: 35px; text-align: center; }
+        .rule-label { font-weight: 500; }
+        .rule-mult { font-weight: 800; color: var(--btn); }
+    </style>
+</head>
+<body>
+
+    <div class="grid-wrapper"></div>
+
+    <div class="balance-card">
+        <span id="bal-val">0.00</span> 💰
+    </div>
+
+    <div class="scene">
+        <div class="dice" id="dice">
+            <div class="face face-1"><div class="dot"></div></div>
+            <div class="face face-2"><div class="dot"></div><div class="dot"></div></div>
+            <div class="face face-3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="face face-4"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="face face-5"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="face face-6"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <span class="label">Размер ставки</span>
+        <input type="number" id="betInp" value="10" min="1" step="1" inputmode="decimal">
+        <button class="play-btn" id="rollBtn" onclick="roll()">Бросить кубик</button>
+    </div>
+
+    <div class="rules-card">
+        <h3>Множители</h3>
+        <div class="rule-row">
+            <div class="rule-info"><span class="rule-dice" style="background:var(--danger); color:white;">1</span> <span class="rule-label">Победа</span></div>
+            <div class="rule-mult" style="color: #43d39e;">x2.0</div>
+        </div>
+        <div class="rule-row">
+            <div class="rule-info"><span class="rule-dice">2-5</span> <span class="rule-label">Ничья</span></div>
+            <div class="rule-mult">x0.95</div>
+        </div>
+        <div class="rule-row">
+            <div class="rule-info"><span class="rule-dice" style="background:#444; color:white;">6</span> <span class="rule-label">Проигрыш</span></div>
+            <div class="rule-mult" style="color: var(--hint);">x0</div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const NGROK_URL = 'https://petrificant-phung-elliptically.ngrok-free.dev'; 
+        const userId = String(tg.initDataUnsafe?.user?.id || 12345);
+
+        let balance = 0;
+        let rotX = -20; let rotY = 20;
+
+        tg.ready();
+        tg.expand();
+        tg.BackButton.show();
+        tg.BackButton.onClick(() => {
+            if(!document.getElementById('rollBtn').disabled) window.location.href = 'index.html';
+        });
+
+        async function updateUI(forcedBalance = null) {
+            if (forcedBalance !== null) {
+                balance = Number(forcedBalance);
+                document.getElementById('bal-val').textContent = balance.toFixed(2);
+            } else {
+                try {
+                    const res = await fetch(`${NGROK_URL}/get-balance/${userId}`, {
+                        headers: { 'ngrok-skip-browser-warning': 'true' }
+                    });
+                    const data = await res.json();
+                    if (data.balance !== undefined) {
+                        balance = Number(data.balance);
+                        document.getElementById('bal-val').textContent = balance.toFixed(2);
+                    }
+                } catch (e) {}
+            }
+        }
+
+        async function roll() {
+            const betInput = document.getElementById('betInp');
+            const bet = parseFloat(betInput.value);
+            const btn = document.getElementById('rollBtn');
+            
+            if (isNaN(bet) || bet <= 0 || bet > balance) {
+                tg.showAlert("Недостаточно средств или некорректная ставка");
+                return;
+            }
+
+            btn.disabled = true;
+            tg.BackButton.hide();
+            tg.enableClosingConfirmation();
+
+            try {
+                const playRes = await fetch(`${NGROK_URL}/play-dice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+                    body: JSON.stringify({ tgId: userId, bet: bet })
+                });
+                const playData = await playRes.json();
+                
+                if (!playRes.ok) {
+                    tg.showAlert(playData.error || "Ошибка сервера");
+                    btn.disabled = false;
+                    tg.BackButton.show();
+                    return;
+                }
+
+                const diceRes = playData.dice; 
+                tg.HapticFeedback.impactOccurred('heavy');
+
+                const faceAngles = {
+                    1: { x: 0, y: 0 }, 2: { x: 0, y: 180 }, 3: { x: 0, y: -90 },
+                    4: { x: 0, y: 90 }, 5: { x: -90, y: 0 }, 6: { x: 90, y: 0 }
+                };
+
+                const currentX = rotX % 360;
+                const currentY = rotY % 360;
+                
+                rotX += 1440 + faceAngles[diceRes].x - currentX;
+                rotY += 1080 + faceAngles[diceRes].y - currentY;
+                
+                document.getElementById('dice').style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+
+                setTimeout(() => {
+                    updateUI(playData.newBalance);
+
+                    // Уведомления удалены, оставлен только виброотклик для удобства
+                    if (playData.win > bet) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    } else if (playData.win > 0) {
+                        tg.HapticFeedback.notificationOccurred('warning');
+                    } else {
+                        tg.HapticFeedback.notificationOccurred('error');
+                    }
+
+                    btn.disabled = false;
+                    tg.BackButton.show();
+                    tg.disableClosingConfirmation();
+                }, 2400);
+
+            } catch (e) {
+                console.error(e);
+                tg.showAlert("Ошибка связи с сервером");
+                btn.disabled = false;
+                tg.BackButton.show();
+            }
+        }
+
+        window.onload = () => updateUI();
+    </script>
+</body>
+</html>
